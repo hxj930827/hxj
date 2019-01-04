@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="hxj.com.dao.BankDao">
+    <cache type="org.mybatis.caches.ehcache.EhcacheCache"></cache>
+    <cache eviction="FIFO" flushInterval="60000" readOnly="false"></cache>
+    <insert id="addBank">
+        insert into TD_BANKTYPE values(#{banktypeCode},#{banktypeName},#{status},#{remark},#{inputUser},#{inputTime},#{centerId},#{inputDate})
+    </insert>
+</mapper>
