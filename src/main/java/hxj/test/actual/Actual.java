@@ -12,14 +12,15 @@ import hxj.test.model.Hyqs;
 import hxj.test.model.SrData;
 import hxj.test.readToString.ReadToString;
 import hxj.test.stringToFile.StringToFile;
+import hxj.util.tips.Tips;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.*;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 说明：〈实战操作〉
@@ -30,6 +31,11 @@ import java.util.List;
  * @since 1.0.0
  */
 public class Actual extends Thread {
+    /**
+     * 定义Pattern常量
+     */
+    private static Pattern p = Pattern.compile(">(\\s*|\t|\n|\r)<");
+
     private String name;
 
     public Actual(String name) {
@@ -38,40 +44,55 @@ public class Actual extends Thread {
 
     @Override
     public void run() {
+        Date date=new Date();
+        SimpleDateFormat sdf=new SimpleDateFormat("yyyyMMddHHmmss");
+        String dateStr=sdf.format(date);
         if (this.name.equals("A")) {
-            readWrite("d:" + File.separator + "srXml" + File.separator + "SRXX", 1);
+            String srxx="d:" + File.separator + "srXml" + File.separator + "SRXX";
+            readWrite(srxx,srxx,"srData",dateStr);
         } else {
-            readWrite("d:" + File.separator + "srXml" + File.separator + "TJXX", 2);
+            String tjxx="d:" + File.separator + "srXml" + File.separator + "TJXX";
+            readWrite(tjxx,tjxx,"gzlData",dateStr);
         }
     }
 
     public static void main(String[] args) {
         Actual actual = new Actual("A");
         Date date=new Date();
-        actual.readWrite("d:" + File.separator + "srXml" + File.separator + "SRXX", 1);
-        actual.readWrite("d:" + File.separator + "srXml" + File.separator + "TJXX", 2);
+        SimpleDateFormat sdf=new SimpleDateFormat("yyyyMMddHHmmss");
+        String dateStr=sdf.format(date);
+        String srxx="d:" + File.separator + "srXml" + File.separator + "SRXX";
+        String tjxx="d:" + File.separator + "srXml" + File.separator + "TJXX";
+
+        actual.readWrite(srxx,srxx,"srData",dateStr);
+        actual.readWrite(tjxx,tjxx,"gzlData",dateStr);
         Date date1=new Date();
         long number = date1.getTime()-date.getTime();
         System.out.println(number);
     }
 
     /**
-     * 获取xml文件并生成新的xml文件
+     * 获取xml文件处理后并生成新的xml文件
      *
-     * @param xmlPath xml文件路径
+     * @param xmlPath  xml文件路径
+     * @param dataType 数据类型  gzlData和srData
      * @return
      */
-    public String readWrite(String xmlPath, int dataType) {
+    public Tips readWrite(String filePath, String xmlPath, String dataType, String dateStr) {
+        // 定义信息提示类
+        Tips tips = new Tips();
         // 创建File对象
-        File dir = new File(xmlPath);
+        File dir = new File(filePath);
         // 判断给定的xml是否存在
         if (!dir.exists()) {
-            return "指定的路径不存在";
+            tips.setFlag(false);
+            tips.setMsg("指定的路径不存在");
+            return tips;
         }
         // 获取根节点的名称(当前文件夹为根节点)
         String strRoot = xmlPath.substring(xmlPath.lastIndexOf(File.separator) + 1, xmlPath.length());
-        // 创建新的根节点
-        String newStrRoot = "new" + strRoot;
+        // 创建新的根节点（根节点+时间）
+        String newStrRoot = strRoot + dateStr;
         // 获取根节点的路径
         String rootPath = xmlPath.substring(0, xmlPath.lastIndexOf(File.separator) + 1);
         // 创建新的根节点路径
@@ -82,43 +103,34 @@ public class Actual extends Thread {
         if (dir.isDirectory()) {
             //获取目录下文件列表
             File[] F1 = dir.listFiles();
-            //循环文件列表
             for (File f2 : F1) {
-                //判断是不是目录
                 if (f2.isDirectory()) {
-                    File[] F2 = f2.listFiles();
-                    for (File f3 : F2) {
-                        if (f3.isDirectory()) {
-                            File[] F3 = f3.listFiles();
-                            for (File f4 : F3) {
-                                if (f4.isDirectory()) {
-                                    File[] F4 = f4.listFiles();
-                                    for (File f5 : F4) {
-                                        if (f5.isDirectory()) {
-
-                                        } else {
-                                            IteratorFile(f5, xmlPath, newRootPath, dataType);
-                                        }
-                                    }
-                                } else {
-                                    IteratorFile(f4, xmlPath, newRootPath, dataType);
-                                }
-                            }
-                        } else {
-                            IteratorFile(f3, xmlPath, newRootPath, dataType);
-                        }
-                    }
-                } else {//是文件
-                    IteratorFile(f2, xmlPath, newRootPath, dataType);
+                    // 递归调用
+                    readWrite(f2.getAbsolutePath(), xmlPath, dataType, dateStr);
+                } else {
+                    // 处理文件内容（文件的格式不正确，需要在最外层再加入两层节点）
+                    iteratorFile(f2, xmlPath, newRootPath, dataType);
                 }
             }
         } else {
-            IteratorFile(dir, xmlPath, newRootPath, dataType);
+            tips.setFlag(false);
+            tips.setMsg("指定的路径是文件，不是目录");
+            return tips;
         }
-        return "hello";
+        tips.setFlag(true);
+        tips.setMsg("解析成功");
+        return tips;
     }
 
-    public void IteratorFile(File file, String xmlPath, String newRootPath, int dataType) {
+    /**
+     * 处理文件内容（文件的格式不正确，需要在最外层再加入两层节点）
+     *
+     * @param file        文件对象
+     * @param xmlPath     解析xml的路径
+     * @param newRootPath 新的根路径
+     * @param dataType    数据类型  gzlData和srData
+     */
+    public void iteratorFile(File file, String xmlPath, String newRootPath, String dataType) {
         // 获取file的路径
         String filePath = file.getAbsolutePath();
         // 生成新的路径
@@ -127,10 +139,12 @@ public class Actual extends Thread {
         String info = ReadToString.readToString(file.getAbsolutePath());
         // 为文件内容添加前后缀   最后必须加一个空格，否则插入的内容没有 >  大于号
         info = "<hyqs>\n<hyqsOne>\n" + info + "</hyqsOne>\n</hyqs> ";
-        String s;
-        if (dataType == 1) {
+        String s = "";
+        if ("srData".equals(dataType)) {
+            // 解析srData
             s = uptSrData(info, newFilePath, file.getName());
-        } else {
+        } else if ("gzlData".equals(dataType)) {
+            // 解析gzlData
             s = uptGzlData(info, newFilePath, file.getName());
         }
         System.out.println(s);
@@ -155,6 +169,8 @@ public class Actual extends Thread {
         List<GzlData> newHyqsOne = new ArrayList<>();
         // 获取结合
         List<Object> hyqsOne = hyqs.getHyqsOne();
+        // 从数据库中获取数据，判断该是否保留
+        //List<Map<String, Object>> list = xmljxDao.getGzlInfo(fileName);
         GzlData gzlData = new GzlData();
         // 判断文件内容是否为空
         if (hyqsOne == null || hyqsOne.size() == 0) {
@@ -162,15 +178,11 @@ public class Actual extends Thread {
         } else {
             for (int i = 0; i < hyqsOne.size(); i++) {
                 gzlData = (GzlData) hyqsOne.get(i);
-                // 从数据库中查询条件，用于判断
-//                if (gzlData.getHPXX0000().contains("20180117")) {
-//                    newHyqsOne.add(gzlData);
-//                }
                 newHyqsOne.add(gzlData);
             }
         }
-        if (newHyqsOne.size() == 0) {
-            return "没有成功匹配的";
+        if(newHyqsOne.size()==0){
+            return "文件中没有匹配的数据";
         }
         String strXml = "";
         // 遍历集合
@@ -182,6 +194,8 @@ public class Actual extends Thread {
         String path = dataFilePath.replace(fileName, "");
         // 去掉最后一个斜杠“\”
         String newPath = path.substring(0, path.length() - 1);
+        Matcher m = p.matcher(strXml);
+        strXml = m.replaceAll(">\n<");
         // 将字符串转换为对象
         StringToFile.strToFile(strXml, newPath, fileName);
         return "新生成了一个" + fileName + "文件，放入了" + dataFilePath;
@@ -207,6 +221,8 @@ public class Actual extends Thread {
         List<SrData> newHyqsOne = new ArrayList<>();
         // 获取结合
         List<Object> hyqsOne = hyqs.getHyqsOne();
+        // 从数据库中获取数据，判断该是否保留
+        //List<Map<String, Object>> list = xmljxDao.getSrInfo(fileName);
         SrData srdata = new SrData();
         // 判断文件内容是否为空
         if (hyqsOne == null || hyqsOne.size() == 0) {
@@ -214,15 +230,11 @@ public class Actual extends Thread {
         } else {
             for (int i = 0; i < hyqsOne.size(); i++) {
                 srdata = (SrData) hyqsOne.get(i);
-                // 从数据库中查询条件，用于判断
-//                if (srdata.getHPXX00().contains("20180117")) {
-//                    newHyqsOne.add(srdata);
-//                }
                 newHyqsOne.add(srdata);
             }
         }
-        if (newHyqsOne.size() == 0) {
-            return "没有成功匹配的";
+        if(newHyqsOne.size()==0){
+            return "文件中没有匹配的数据";
         }
         String strXml = "";
         // 遍历集合
@@ -234,6 +246,9 @@ public class Actual extends Thread {
         String path = dataFilePath.replace(fileName, "");
         // 去掉最后一个斜杠“\”
         String newPath = path.substring(0, path.length() - 1);
+
+        Matcher m = p.matcher(strXml);
+        strXml = m.replaceAll(">\n<");
         // 将字符串转换为对象
         StringToFile.strToFile(strXml, newPath, fileName);
         return "新生成了一个" + fileName + "文件，放入了" + dataFilePath;
